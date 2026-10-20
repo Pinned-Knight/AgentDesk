@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend tests (in-memory)
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: backend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  backend-integration:
+    name: Backend tests (real MongoDB + Redis)
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: backend}}
+    services:
+      mongo:
+        image: mongo:7
+        ports: ["27017:27017"]
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+    env:
+      MONGODB_URI: mongodb://localhost:27017
+      REDIS_URL: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11", cache: pip, cache-dependency-path: backend/requirements-dev.txt}
+      - run: pip install -r requirements-dev.txt
+      - run: pytest -q
+
+  compose-smoke:
+    name: docker compose smoke test (full stack)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build --wait --wait-timeout 240
+      - name: API is wired to real MongoDB + Redis and answers a chat turn
+        run: |
+          curl -sf localhost:8000/api/health | tee health.json
+          grep -q '"mongo":"mongodb"' health.json && grep -q '"redis":"redis"' health.json
+          curl -sf -X POST localhost:8000/api/chat -H 'content-type: application/json' \
+            -d '{"session_id":"ci-smoke-0001","message":"Where is my order ORD-1002?"}' | tee chat.json
+          grep -q '"intent":"order_status"' chat.json
+      - name: UI is served
+        run: curl -sf localhost:3000 | grep -qi "AgentDesk"
+      - if: failure()
+        run: docker compose logs --no-color | tail -80
+
+  frontend:
+    name: Frontend typecheck + build
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: frontend}}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
