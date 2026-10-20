@@ -1,0 +1,11 @@
+fastapi==0.156.2
+uvicorn[standard]==0.54.0
+motor==3.7.1
+pymongo==4.19.0
+redis==8.1.0
+pydantic-settings==2.16.1
+langgraph==1.2.16
+httpx==0.28.1
+# in-memory stand-ins used when MONGODB_URI / REDIS_URL are not set (demo mode, tests)
+mongomock-motor==0.0.36
+fakeredis==2.40.0
