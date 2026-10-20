@@ -46,13 +46,14 @@ jobs:
       - run: docker compose up -d --build --wait --wait-timeout 240
       - name: API is wired to real MongoDB + Redis and answers a chat turn
         run: |
-          curl -sf localhost:8000/api/health | tee health.json
+          RETRY="--retry 15 --retry-connrefused --retry-delay 2"
+          curl -sf $RETRY localhost:8000/api/health | tee health.json; echo
           grep -q '"mongo":"mongodb"' health.json && grep -q '"redis":"redis"' health.json
-          curl -sf -X POST localhost:8000/api/chat -H 'content-type: application/json' \
-            -d '{"session_id":"ci-smoke-0001","message":"Where is my order ORD-1002?"}' | tee chat.json
+          curl -sf $RETRY -X POST localhost:8000/api/chat -H 'content-type: application/json' \
+            -d '{"session_id":"ci-smoke-0001","message":"Where is my order ORD-1002?"}' | tee chat.json; echo
           grep -q '"intent":"order_status"' chat.json
       - name: UI is served
-        run: curl -sf localhost:3000 | grep -qi "AgentDesk"
+        run: curl -sf --retry 15 --retry-connrefused --retry-delay 2 localhost:3000 | grep -qi "AgentDesk"
       - if: failure()
         run: docker compose logs --no-color | tail -80
 

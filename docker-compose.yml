@@ -29,6 +29,12 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
     ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     depends_on:
       mongo: {condition: service_healthy}
       redis: {condition: service_healthy}
@@ -39,7 +45,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://localhost:8000
     ports: ["3000:3000"]
-    depends_on: [backend]
+    depends_on:
+      backend: {condition: service_healthy}
 
 volumes:
   mongo_data:
